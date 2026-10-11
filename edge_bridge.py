@@ -6,7 +6,7 @@ import time
 
 COM_PORT = 'COM3'
 BAUD_RATE = 115200
-FLASK_URL = 'http://127.0.0.1:5000/api/telemetry'
+FLASK_URL = 'https://smart-dumbbell-system.onrender.com/api/telemetry'
 
 def process_and_send():
     # Thresholds and state variables
@@ -79,7 +79,7 @@ def process_and_send():
             }
 
             # POST to Flask in-memory endpoint
-            response = requests.post(FLASK_URL, json=payload, timeout=0.5)
+            response = requests.post(FLASK_URL, json=payload, timeout=3.0)
             print(f"Pushed: Reps={rep_count} | Form={form_status} | Status={response.status_code}")
 
         except json.JSONDecodeError:
