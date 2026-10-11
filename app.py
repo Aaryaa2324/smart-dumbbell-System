@@ -1,58 +1,116 @@
 import hashlib
-import logging
+import os
 import sqlite3
 from flask import Flask, jsonify, redirect, render_template, request, session, url_for
 
-logging.basicConfig(level=logging.INFO)
+# Optional PostgreSQL support for Render deployment
+try:
+    import psycopg2
+    import psycopg2.extras
+    HAS_POSTGRES = True
+except ImportError:
+    HAS_POSTGRES = False
 
 app = Flask(__name__)
 app.secret_key = 'smart_dumbbell_secure_key'
 
-DB_FILE = 'dumbbell.db'
+DATABASE_URL = os.environ.get('DATABASE_URL')
+
+def get_db_connection():
+    if DATABASE_URL and HAS_POSTGRES:
+        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+        return conn, 'postgres'
+    else:
+        conn = sqlite3.connect('dumbbell.db')
+        return conn, 'sqlite'
 
 def init_db():
-    conn = sqlite3.connect(DB_FILE)
+    conn, db_type = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS workouts (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-            duration TEXT,
-            reps INTEGER,
-            form_rating TEXT
-        )
-    """)
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username_hash TEXT UNIQUE,
-            password_hash TEXT
-        )
-    """)
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS live_telemetry (
-            id INTEGER PRIMARY KEY CHECK (id = 1),
-            raw_accel REAL,
-            filtered_accel REAL,
-            form_status TEXT,
-            rep_count INTEGER
-        )
-    """)
-    cursor.execute("""
-        INSERT OR IGNORE INTO live_telemetry (id, raw_accel, filtered_accel, form_status, rep_count)
-        VALUES (1, 0.0, 0.0, 'Stationary - Not Started', 0)
-    """)
-    conn.commit()
 
-    cursor.execute('SELECT COUNT(*) FROM users')
-    if cursor.fetchone()[0] == 0:
-        default_user_hash = hashlib.sha256('athlete'.encode()).hexdigest()
-        default_pass_hash = hashlib.sha256('workout123'.encode()).hexdigest()
-        cursor.execute(
-            'INSERT INTO users (username_hash, password_hash) VALUES (?, ?)',
-            (default_user_hash, default_pass_hash),
-        )
+    if db_type == 'postgres':
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS workouts (
+                id SERIAL PRIMARY KEY,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                duration TEXT,
+                reps INTEGER,
+                form_rating TEXT
+            )
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id SERIAL PRIMARY KEY,
+                username_hash TEXT UNIQUE,
+                password_hash TEXT
+            )
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS live_telemetry (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                raw_accel REAL,
+                filtered_accel REAL,
+                form_status TEXT,
+                rep_count INTEGER
+            )
+        """)
+        cursor.execute("""
+            INSERT INTO live_telemetry (id, raw_accel, filtered_accel, form_status, rep_count)
+            VALUES (1, 0.0, 0.0, 'Stationary - Not Started', 0)
+            ON CONFLICT (id) DO NOTHING;
+        """)
         conn.commit()
+
+        cursor.execute('SELECT COUNT(*) FROM users')
+        if cursor.fetchone()[0] == 0:
+            default_user_hash = hashlib.sha256('athlete'.encode()).hexdigest()
+            default_pass_hash = hashlib.sha256('workout123'.encode()).hexdigest()
+            cursor.execute(
+                'INSERT INTO users (username_hash, password_hash) VALUES (%s, %s)',
+                (default_user_hash, default_pass_hash),
+            )
+            conn.commit()
+    else:
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS workouts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                duration TEXT,
+                reps INTEGER,
+                form_rating TEXT
+            )
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username_hash TEXT UNIQUE,
+                password_hash TEXT
+            )
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS live_telemetry (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                raw_accel REAL,
+                filtered_accel REAL,
+                form_status TEXT,
+                rep_count INTEGER
+            )
+        """)
+        cursor.execute("""
+            INSERT OR IGNORE INTO live_telemetry (id, raw_accel, filtered_accel, form_status, rep_count)
+            VALUES (1, 0.0, 0.0, 'Stationary - Not Started', 0)
+        """)
+        conn.commit()
+
+        cursor.execute('SELECT COUNT(*) FROM users')
+        if cursor.fetchone()[0] == 0:
+            default_user_hash = hashlib.sha256('athlete'.encode()).hexdigest()
+            default_pass_hash = hashlib.sha256('workout123'.encode()).hexdigest()
+            cursor.execute(
+                'INSERT INTO users (username_hash, password_hash) VALUES (?, ?)',
+                (default_user_hash, default_pass_hash),
+            )
+            conn.commit()
     conn.close()
 
 init_db()
@@ -68,9 +126,12 @@ def login():
         password = data.get('password', '')
         pass_hash = hashlib.sha256(password.encode()).hexdigest()
 
-        conn = sqlite3.connect(DB_FILE)
+        conn, db_type = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute('SELECT * FROM users WHERE password_hash = ?', (pass_hash,))
+        if db_type == 'postgres':
+            cursor.execute('SELECT * FROM users WHERE password_hash = %s', (pass_hash,))
+        else:
+            cursor.execute('SELECT * FROM users WHERE password_hash = ?', (pass_hash,))
         user = cursor.fetchone()
         conn.close()
 
@@ -108,15 +169,20 @@ def receive_telemetry():
         status = data.get('form_status', data.get('form_rating', 'Stationary - Not Started'))
         reps = data.get('rep_count', data.get('reps', 0))
 
-        app.logger.info("Telemetry received: %s", data)
-
-        conn = sqlite3.connect(DB_FILE)
+        conn, db_type = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute("""
-            UPDATE live_telemetry
-            SET raw_accel = ?, filtered_accel = ?, form_status = ?, rep_count = ?
-            WHERE id = 1
-        """, (raw, filtered, status, reps))
+        if db_type == 'postgres':
+            cursor.execute("""
+                UPDATE live_telemetry 
+                SET raw_accel = %s, filtered_accel = %s, form_status = %s, rep_count = %s
+                WHERE id = 1
+            """, (raw, filtered, status, reps))
+        else:
+            cursor.execute("""
+                UPDATE live_telemetry 
+                SET raw_accel = ?, filtered_accel = ?, form_status = ?, rep_count = ?
+                WHERE id = 1
+            """, (raw, filtered, status, reps))
         conn.commit()
         conn.close()
         return jsonify({'status': 'success'}), 200
@@ -124,12 +190,12 @@ def receive_telemetry():
 
 @app.route('/api/live_stream', methods=['GET'])
 def send_live_stream():
-    conn = sqlite3.connect(DB_FILE)
+    conn, db_type = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT raw_accel, filtered_accel, form_status, rep_count FROM live_telemetry WHERE id = 1")
     row = cursor.fetchone()
     conn.close()
-
+    
     if row:
         telemetry_data = {
             'accel': row[1],
@@ -141,7 +207,7 @@ def send_live_stream():
             'form_rating': row[2]
         }
         return jsonify(telemetry_data)
-
+    
     return jsonify({
         'accel': 0.0,
         'filtered_accel': 0.0,
@@ -159,19 +225,25 @@ def save_workout():
     reps = data.get('reps', data.get('rep_count', 0))
     form_rating = data.get('form_rating', 'Good Form')
 
-    conn = sqlite3.connect(DB_FILE)
+    conn, db_type = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute(
-        'INSERT INTO workouts (duration, reps, form_rating) VALUES (?, ?, ?)',
-        (duration, reps, form_rating),
-    )
+    if db_type == 'postgres':
+        cursor.execute(
+            'INSERT INTO workouts (duration, reps, form_rating) VALUES (%s, %s, %s)',
+            (duration, reps, form_rating),
+        )
+    else:
+        cursor.execute(
+            'INSERT INTO workouts (duration, reps, form_rating) VALUES (?, ?, ?)',
+            (duration, reps, form_rating),
+        )
     conn.commit()
     conn.close()
     return jsonify({'status': 'success', 'message': 'Workout saved!'}), 200
 
 @app.route('/api/get_history', methods=['GET'])
 def get_history():
-    conn = sqlite3.connect(DB_FILE)
+    conn, db_type = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('SELECT id, timestamp, duration, reps, form_rating FROM workouts ORDER BY id DESC')
     rows = cursor.fetchall()
@@ -180,7 +252,7 @@ def get_history():
     history_data = [
         {
             'id': r[0],
-            'timestamp': r[1],
+            'timestamp': str(r[1]),
             'duration': r[2],
             'reps': r[3],
             'form_rating': r[4],
