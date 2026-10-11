@@ -9,16 +9,16 @@ BAUD_RATE = 115200
 FLASK_URL = 'https://smart-dumbbell-system.onrender.com/api/telemetry'
 
 def process_and_send():
-    # Thresholds and state variables
-    REP_THRESHOLD_HIGH = 10.5  # Upper movement peak
-    REP_THRESHOLD_LOW = 9.2    # Lower movement valley
-    DEBOUNCE_DELAY = 0.4       # Minimum seconds required between valid reps
+    # Fine-tuned thresholds and precision control
+    REP_THRESHOLD_HIGH = 3.0   # Trigger when movement force exceeds 3.0
+    REP_THRESHOLD_LOW = 1.0    # Reset when motion drops below 1.0
+    DEBOUNCE_DELAY = 0.25      # Minimum seconds required between valid reps
     last_rep_time = 0
-    alpha = 0.2                # Low-pass filter smoothing coefficient
+    alpha = 0.4                # Low-pass filter smoothing coefficient
 
     rep_count = 0
     in_rep = False
-    filtered_accel = 9.81
+    filtered_accel = 0.0
 
     print(f"Connecting to Arduino on {COM_PORT} at {BAUD_RATE} baud...")
     
@@ -35,13 +35,16 @@ def process_and_send():
         try:
             if ser.in_waiting > 0:
                 line = ser.readline().decode('utf-8', errors='ignore').strip()
+                print(f"RAW FROM ARDUINO: '{line}'")
                 if not line:
                     continue
 
-                # Expecting JSON or parsed data from Arduino
+                # Expecting JSON with ax, ay, az from Arduino
                 try:
                     data = json.loads(line)
-                    raw_accel = float(data.get("accel", 9.81))
+                    ay = float(data.get("ay", 10.0))
+                    # Calculate net motion change by removing gravity baseline
+                    raw_accel = abs(ay - 9.81)
                 except json.JSONDecodeError:
                     # Fallback if Arduino sends plain float/string numbers instead of JSON
                     try:
@@ -52,7 +55,7 @@ def process_and_send():
                 # Apply low-pass filter
                 filtered_accel = (alpha * raw_accel) + ((1 - alpha) * filtered_accel)
 
-                # Rep counting state machine logic
+                # Responsive rep counting state machine
                 current_time = time.time()
                 if not in_rep and filtered_accel > REP_THRESHOLD_HIGH:
                     if (current_time - last_rep_time) > DEBOUNCE_DELAY:
@@ -63,22 +66,27 @@ def process_and_send():
                     in_rep = False
 
                 # Form status evaluation
-                if abs(filtered_accel - 9.81) < 0.4:
+                if filtered_accel < 0.8:
                     form_status = "Stationary - Not Started"
-                elif abs(filtered_accel - 9.81) < 1.5:
+                elif filtered_accel < 2.0:
                     form_status = "Resting"
                 else:
                     form_status = "Good Form"
 
                 # Construct payload
+                # Construct payload with dual-compatibility keys for Flask app.py
+                # Construct comprehensive payload ensuring full frontend compatibility
                 payload = {
-                    "raw_accel": round(raw_accel, 2),
+                    "accel": round(filtered_accel, 2),
                     "filtered_accel": round(filtered_accel, 2),
+                    "raw_accel": round(raw_accel, 2),
+                    "rep_count": rep_count,
+                    "reps": rep_count,
                     "form_status": form_status,
-                    "rep_count": rep_count
+                    "form_rating": form_status
                 }
 
-                # POST to Flask cloud endpoint
+                # POST to Render cloud endpoint
                 response = requests.post(FLASK_URL, json=payload, timeout=3.0)
                 print(f"Pushed: Reps={rep_count} | Form={form_status} | Status={response.status_code}")
 
