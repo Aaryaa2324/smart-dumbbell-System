@@ -1,37 +1,14 @@
 import hashlib
+import logging
 import sqlite3
 from flask import Flask, jsonify, redirect, render_template, request, session, url_for
+
+logging.basicConfig(level=logging.INFO)
 
 app = Flask(__name__)
 app.secret_key = 'smart_dumbbell_secure_key'
 
 DB_FILE = 'dumbbell.db'
-
-import logging
-logging.basicConfig(level=logging.INFO)
-
-@app.route('/api/telemetry', methods=['POST'])
-def receive_telemetry():
-    data = request.get_json()
-    if data:
-        raw = data.get('raw_accel', data.get('accel', 0.0))
-        filtered = data.get('filtered_accel', data.get('accel', 0.0))
-        status = data.get('form_status', data.get('form_rating', 'Stationary - Not Started'))
-        reps = data.get('rep_count', data.get('reps', 0))
-
-        app.logger.info("Telemetry received: %s", data)   # the one new line
-
-        conn = sqlite3.connect(DB_FILE)
-        cursor = conn.cursor()
-        cursor.execute("""
-            UPDATE live_telemetry 
-            SET raw_accel = ?, filtered_accel = ?, form_status = ?, rep_count = ?
-            WHERE id = 1
-        """, (raw, filtered, status, reps))
-        conn.commit()
-        conn.close()
-        return jsonify({'status': 'success'}), 200
-    return jsonify({'status': 'error', 'message': 'No data received'}), 400
 
 def init_db():
     conn = sqlite3.connect(DB_FILE)
@@ -126,16 +103,17 @@ def history():
 def receive_telemetry():
     data = request.get_json()
     if data:
-        # Flexible key extraction
         raw = data.get('raw_accel', data.get('accel', 0.0))
         filtered = data.get('filtered_accel', data.get('accel', 0.0))
         status = data.get('form_status', data.get('form_rating', 'Stationary - Not Started'))
         reps = data.get('rep_count', data.get('reps', 0))
 
+        app.logger.info("Telemetry received: %s", data)
+
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
         cursor.execute("""
-            UPDATE live_telemetry 
+            UPDATE live_telemetry
             SET raw_accel = ?, filtered_accel = ?, form_status = ?, rep_count = ?
             WHERE id = 1
         """, (raw, filtered, status, reps))
@@ -151,9 +129,8 @@ def send_live_stream():
     cursor.execute("SELECT raw_accel, filtered_accel, form_status, rep_count FROM live_telemetry WHERE id = 1")
     row = cursor.fetchone()
     conn.close()
-    
+
     if row:
-        # Provide both naming conventions so frontend JS never fails
         telemetry_data = {
             'accel': row[1],
             'filtered_accel': row[1],
@@ -164,7 +141,7 @@ def send_live_stream():
             'form_rating': row[2]
         }
         return jsonify(telemetry_data)
-    
+
     return jsonify({
         'accel': 0.0,
         'filtered_accel': 0.0,
