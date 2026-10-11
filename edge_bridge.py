@@ -10,8 +10,8 @@ FLASK_URL = 'https://smart-dumbbell-system.onrender.com/api/telemetry'
 
 def process_and_send():
     # Thresholds and state variables
-    REP_THRESHOLD_HIGH = 12.0  # Upper movement peak
-    REP_THRESHOLD_LOW = 8.0    # Lower movement valley
+    REP_THRESHOLD_HIGH = 3.0  # Upper movement peak
+    REP_THRESHOLD_LOW = 1.5    # Lower movement valley
     DEBOUNCE_DELAY = 0.4       # Minimum seconds required between valid reps
     last_rep_time = 0
     alpha = 0.2                # Low-pass filter smoothing coefficient
