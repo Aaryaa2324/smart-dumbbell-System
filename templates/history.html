@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Workout History - Smart Dumbbell</title>
+    <style>
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background: #121212; 
+            color: #e0e0e0; 
+            margin: 0; 
+            padding: 30px 20px; 
+            text-align: center; 
+        }
+        .container { 
+            max-width: 850px; 
+            margin: auto; 
+            background: #1e1e1e; 
+            padding: 30px; 
+            border-radius: 16px; 
+            box-shadow: 0 8px 24px rgba(0,0,0,0.5); 
+        }
+        h1 { color: #ffffff; margin-bottom: 5px; font-weight: 600; }
+        .nav-links { margin-bottom: 25px; }
+        .nav-links a { color: #4da6ff; text-decoration: none; margin: 0 10px; font-weight: bold; }
+        .nav-links a:hover { text-decoration: underline; }
+
+        .summary-cards {
+            display: flex;
+            justify-content: space-around;
+            margin-bottom: 30px;
+            gap: 15px;
+        }
+        .card {
+            background: #252526;
+            border: 1px solid #333;
+            padding: 20px;
+            border-radius: 12px;
+            width: 45%;
+        }
+        .card h3 { margin: 0 0 5px 0; font-size: 13px; color: #aaa; text-transform: uppercase; }
+        .card span { font-size: 32px; font-weight: bold; color: #5cdb5c; }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            background: #252526;
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid #333;
+        }
+        th, td { padding: 14px 18px; text-align: center; border-bottom: 1px solid #333; }
+        th { background: #2d2d30; color: #aaa; font-size: 13px; text-transform: uppercase; }
+        tr:hover { background: #2a2a2b; }
+        .badge-good { color: #5cdb5c; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📜 Workout Log & Analytics</h1>
+        <div class="nav-links">
+            <a href="/">Home</a> | 
+            <a href="/dashboard">Live Dashboard</a>
+        </div>
+
+        <div class="summary-cards">
+            <div class="card">
+                <h3>Total Sessions Logged</h3>
+                <span id="total-sessions">0</span>
+            </div>
+            <div class="card">
+                <h3>Lifetime Reps Count</h3>
+                <span id="lifetime-reps" style="color: #4da6ff;">0</span>
+            </div>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Session ID</th>
+                    <th>Date & Time</th>
+                    <th>Duration</th>
+                    <th>Total Reps</th>
+                    <th>Form Status</th>
+                </tr>
+            </thead>
+            <tbody id="history-rows">
+                <tr><td colspan="5" style="color: #888;">Loading history...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        async function loadHistory() {
+            try {
+                let response = await fetch('/api/get_history');
+                let data = await response.json();
+                
+                let tbody = document.getElementById('history-rows');
+                tbody.innerHTML = '';
+
+                if (data.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" style="color: #888;">No completed workouts logged yet.</td></tr>';
+                    return;
+                }
+
+                let totalReps = 0;
+                data.forEach(item => {
+                    totalReps += item.reps;
+                    let row = `
+                        <tr>
+                            <td>#${item.id}</td>
+                            <td>${item.timestamp}</td>
+                            <td>${item.duration}</td>
+                            <td><strong>${item.reps}</strong></td>
+                            <td class="badge-good">${item.form_rating}</td>
+                        </tr>
+                    `;
+                    tbody.innerHTML += row;
+                });
+
+                document.getElementById('total-sessions').innerText = data.length;
+                document.getElementById('lifetime-reps').innerText = totalReps;
+            } catch (err) {
+                console.error("Failed to load history:", err);
+            }
+        }
+
+        loadHistory();
+    </script>
+</body>
+</html>

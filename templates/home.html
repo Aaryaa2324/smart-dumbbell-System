@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Smart Dumbbell Workout Assistant</title>
+    <style>
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background: #121212; 
+            color: #e0e0e0; 
+            margin: 0; 
+            padding: 40px 20px; 
+            text-align: center; 
+        }
+        .container { 
+            max-width: 900px; 
+            margin: auto; 
+            background: #1e1e1e; 
+            padding: 40px 30px; 
+            border-radius: 16px; 
+            box-shadow: 0 8px 24px rgba(0,0,0,0.5); 
+            border: 1px solid #333;
+        }
+        h1 { color: #ffffff; font-size: 38px; margin-bottom: 10px; font-weight: 700; }
+        .subtitle { color: #888; font-size: 18px; margin-bottom: 25px; }
+        
+        .hero-banner {
+            width: 100%;
+            height: 280px;
+            object-fit: cover;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            border: 1px solid #333;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+        }
+
+        .cta-group {
+            margin-bottom: 40px;
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+        }
+        .cta-button {
+            display: inline-block;
+            background: #007bff;
+            color: white;
+            padding: 14px 30px;
+            border-radius: 30px;
+            font-size: 16px;
+            font-weight: bold;
+            text-decoration: none;
+            box-shadow: 0 4px 15px rgba(0, 123, 255, 0.4);
+            transition: all 0.2s ease;
+        }
+        .cta-button:hover { background: #0056b3; transform: translateY(-2px); }
+        .cta-secondary { background: #252526; border: 1px solid #444; color: #4da6ff; }
+        .cta-secondary:hover { background: #2d2d30; }
+
+        /* Interactive 3D Spinning Cards */
+        .features { 
+            display: flex; 
+            justify-content: space-around; 
+            gap: 20px; 
+            flex-wrap: wrap; 
+            perspective: 1000px;
+        }
+        .feature-card-container {
+            width: 28%;
+            min-width: 220px;
+            height: 180px;
+            background: transparent;
+            cursor: pointer;
+        }
+        .feature-card-inner {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            text-align: left;
+            transition: transform 0.8s;
+            transform-style: preserve-3d;
+            border-radius: 14px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+        .feature-card-container:hover .feature-card-inner {
+            transform: rotateY(180deg);
+        }
+        .card-front, .card-back {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden;
+            border-radius: 14px;
+            padding: 22px;
+            box-sizing: border-box;
+            border: 1px solid #333;
+        }
+        .card-front {
+            background: #252526;
+            color: white;
+        }
+        .card-back {
+            background: #1e3d59;
+            color: white;
+            transform: rotateY(180deg);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        .card-front h3 { margin: 0 0 10px 0; font-size: 15px; color: #4da6ff; }
+        .card-front p { margin: 0; font-size: 13px; color: #aaa; line-height: 1.4; }
+        .card-back h4 { margin: 0 0 8px 0; font-size: 14px; color: #5cdb5c; }
+        .card-back p { margin: 0; font-size: 12px; color: #cfd8dc; line-height: 1.4; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏋️‍♂️ Smart Dumbbell Companion</h1>
+        <div class="subtitle">Transform your workouts with real-time motion tracking and intelligent AI coaching.</div>
+        
+        <img src="https://images.unsplash.com/photo-1584735935682-2f2b69dff9d2?q=80&w=1200&auto=format&fit=crop" alt="Gym Fitness Workout" class="hero-banner">
+
+        <div class="cta-group">
+            <a href="/login" class="cta-button">Secure Athlete Login</a>
+            <a href="/dashboard" class="cta-button cta-secondary">Open Live Dashboard</a>
+        </div>
+
+        <!-- Interactive Spinning Feature Cards -->
+        <div class="features">
+            <div class="feature-card-container">
+                <div class="feature-card-inner">
+                    <div class="card-front">
+                        <h3>📊 Live Motion Tracking</h3>
+                        <p>Visualize your lifting acceleration curves in real-time with smooth waveform graphics.</p>
+                    </div>
+                    <div class="card-back">
+                        <h4>How it Works</h4>
+                        <p>Powered by MPU6050 sensor telemetry streamed securely over local Wi-Fi to Chart.js.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="feature-card-container">
+                <div class="feature-card-inner">
+                    <div class="card-front">
+                        <h3>🧠 Smart Form Coaching</h3>
+                        <p>Get instant feedback on your posture. Know when to slow down or when your form is locked in.</p>
+                    </div>
+                    <div class="card-back">
+                        <h4>AI Guidance</h4>
+                        <p>Software debouncing detects jerky motion vs steady reps to protect joints and maximize gains.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="feature-card-container">
+                <div class="feature-card-inner">
+                    <div class="card-front">
+                        <h3>🔒 Privacy & Security</h3>
+                        <p>User names and credentials are fully encrypted and hidden using advanced SHA-256 hashing.</p>
+                    </div>
+                    <div class="card-back">
+                        <h4>Secure Vault</h4>
+                        <p>Data persistence handled via SQLite with encrypted password verification on every session login.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

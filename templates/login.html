@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Secure Login - Smart Dumbbell</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #121212; color: #e0e0e0; margin: 0; padding: 100px 20px; text-align: center; }
+        .container { max-width: 400px; margin: auto; background: #1e1e1e; padding: 40px; border-radius: 16px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); border: 1px solid #333; }
+        h2 { color: #fff; margin-bottom: 10px; }
+        p { color: #888; font-size: 13px; margin-bottom: 25px; }
+        input { width: 100%; padding: 12px; margin-bottom: 20px; background: #121212; border: 1px solid #444; color: white; border-radius: 8px; box-sizing: border-box; font-size: 16px; text-align: center; }
+        button { width: 100%; background: #007bff; color: white; border: none; padding: 12px; border-radius: 8px; font-weight: bold; font-size: 16px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        .error { color: #ff6b6b; font-size: 14px; margin-top: 15px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>🔒 Secure Athlete Login</h2>
+        <p>Your username is protected via SHA-256 encryption.</p>
+        <form id="login-form" onsubmit="handleLogin(event)">
+            <input type="password" id="password" placeholder="Enter Password (default: workout123)" required>
+            <button type="submit">Access Dashboard</button>
+        </form>
+        <div id="error-msg" class="error"></div>
+    </div>
+
+    <script>
+        async function handleLogin(event) {
+            event.preventDefault();
+            const password = document.getElementById('password').value;
+
+            try {
+                let response = await fetch('/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password: password })
+                });
+                let result = await response.json();
+                if (response.ok && result.status === "success") {
+                    window.location.href = result.redirect;
+                } else {
+                    document.getElementById('error-msg').innerText = result.message;
+                }
+            } catch (err) {
+                console.error("Login error:", err);
+            }
+        }
+    </script>
+</body>
+</html>

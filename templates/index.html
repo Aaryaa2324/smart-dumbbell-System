@@ -1,0 +1,339 @@
+\<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Smart Dumbbell Workout Assistant</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background: #121212; 
+            color: #e0e0e0; 
+            margin: 0; 
+            padding: 20px; 
+            text-align: center; 
+        }
+        .container { 
+            max-width: 850px; 
+            margin: auto; 
+            background: #1e1e1e; 
+            padding: 30px; 
+            border-radius: 16px; 
+            box-shadow: 0 8px 24px rgba(0,0,0,0.5); 
+            border: 1px solid #333;
+        }
+        h1 { color: #ffffff; margin-bottom: 5px; font-weight: 600; }
+        .subtitle { color: #888; font-size: 14px; margin-bottom: 15px; }
+        
+        /* Navigation Links */
+        .nav-links { margin-bottom: 25px; }
+        .nav-links a { color: #4da6ff; text-decoration: none; margin: 0 10px; font-weight: bold; }
+        .nav-links a:hover { text-decoration: underline; }
+        .logout-link { color: #ff6b6b !important; }
+        
+        /* Friendly Coaching Banner */
+        .coaching-banner {
+            background: #252526;
+            border: 2px solid #6c757d;
+            color: #adb5bd;
+            padding: 16px;
+            border-radius: 12px;
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 25px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            transition: all 0.3s ease;
+        }
+
+        /* Controls / Settings */
+        .controls-section {
+            background: #252526;
+            padding: 15px 20px;
+            border-radius: 12px;
+            margin-bottom: 25px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 1px solid #333;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+        .controls-section label { font-size: 14px; color: #ccc; display: block; margin-bottom: 5px; text-align: left; }
+        .timer-inputs input { 
+            background: #121212; 
+            border: 1px solid #444; 
+            color: white; 
+            padding: 6px; 
+            border-radius: 6px; 
+            width: 50px; 
+            text-align: center; 
+            font-size: 15px;
+        }
+        .btn-group { display: flex; gap: 10px; flex-wrap: wrap; }
+        .controls-section button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 18px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 14px;
+        }
+        .controls-section button:hover { background: #0056b3; }
+        .btn-save { background: #28a745 !important; }
+        .btn-save:hover { background: #218838 !important; }
+
+        /* Metric Cards */
+        .metrics { 
+            display: flex; 
+            justify-content: space-around; 
+            margin-bottom: 25px; 
+            flex-wrap: wrap; 
+            gap: 15px; 
+        }
+        .card { 
+            background: #252526; 
+            border: 1px solid #333;
+            color: white; 
+            padding: 20px; 
+            border-radius: 14px; 
+            width: 42%; 
+            min-width: 200px; 
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3); 
+        }
+        .card h3 { 
+            margin: 0 0 8px 0; 
+            font-size: 13px; 
+            color: #aaa;
+            text-transform: uppercase; 
+            letter-spacing: 1.2px; 
+        }
+        .card span { 
+            font-size: 32px; 
+            font-weight: bold; 
+            color: #4da6ff;
+        }
+
+        /* Chart */
+        .chart-wrapper {
+            background: #252526;
+            padding: 20px;
+            border-radius: 14px;
+            border: 1px solid #333;
+        }
+        .chart-container { 
+            position: relative; 
+            margin: auto; 
+            height: 250px; 
+            width: 100%; 
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Smart Dumbbell Companion</h1>
+        <div class="subtitle">Your personal real-time workout assistant</div>
+        
+        <!-- Navigation Links including Logout -->
+        <div class="nav-links">
+            <a href="/">Home</a> | 
+            <a href="/history">Workout History</a> | 
+            <a href="/logout" class="logout-link">Logout</a>
+        </div>
+        
+        <!-- Friendly Coaching Guidance Box -->
+        <div id="coaching-message" class="coaching-banner">
+            ⏸️ Stationary - Not started yet. Pick up your dumbbell and begin!
+        </div>
+
+        <!-- User Workout Timer Settings (Hours : Minutes : Seconds) -->
+        <div class="controls-section">
+            <div>
+                <label><strong>Set Workout Goal Timer:</strong></label>
+                <div class="timer-inputs">
+                    <input type="number" id="target-hours" value="0" min="0" max="23"> Hr
+                    <input type="number" id="target-mins" value="5" min="0" max="59"> Min
+                    <input type="number" id="target-secs" value="0" min="0" max="59"> Sec
+                </div>
+            </div>
+            <div class="btn-group">
+                <button onclick="startWorkoutTimer()">Start Timer</button>
+                <button class="btn-save" onclick="saveCurrentWorkout()">Finish & Save</button>
+            </div>
+        </div>
+        
+        <!-- Big Stat Cards -->
+        <div class="metrics">
+            <div class="card">
+                <h3>Completed Reps</h3>
+                <span id="rep-count" style="color: #4da6ff;">0</span>
+            </div>
+            <div class="card">
+                <h3>Workout Timer</h3>
+                <span id="workout-timer" style="color: #5cdb5c;">00:05:00</span>
+            </div>
+        </div>
+
+        <!-- Live Waveform Chart -->
+        <div class="chart-wrapper">
+            <h3 style="color: #aaa; font-size: 13px; margin-top: 0; text-align: left;">Live Movement Motion Wave</h3>
+            <div class="chart-container">
+                <canvas id="accelChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Stopwatch / Countdown Timer Logic (Hours:Minutes:Seconds)
+        let totalSecondsRemaining = 300; 
+        let timerInterval = null;
+
+        function startWorkoutTimer() {
+            const hrs = parseInt(document.getElementById('target-hours').value) || 0;
+            const mins = parseInt(document.getElementById('target-mins').value) || 0;
+            const secs = parseInt(document.getElementById('target-secs').value) || 0;
+            
+            totalSecondsRemaining = (hrs * 3600) + (mins * 60) + secs;
+            if (totalSecondsRemaining <= 0) totalSecondsRemaining = 300;
+            
+            if (timerInterval) clearInterval(timerInterval);
+            
+            updateTimerDisplay();
+            timerInterval = setInterval(() => {
+                if (totalSecondsRemaining > 0) {
+                    totalSecondsRemaining--;
+                    updateTimerDisplay();
+                } else {
+                    document.getElementById('workout-timer').innerText = "Time's Up!";
+                    document.getElementById('coaching-message').innerHTML = "🏆 Great job! Workout goal completed. Time to rest!";
+                    clearInterval(timerInterval);
+                }
+            }, 1000);
+        }
+
+        function updateTimerDisplay() {
+            let h = Math.floor(totalSecondsRemaining / 3600).toString().padStart(2, '0');
+            let m = Math.floor((totalSecondsRemaining % 3600) / 60).toString().padStart(2, '0');
+            let s = (totalSecondsRemaining % 60).toString().padStart(2, '0');
+            document.getElementById('workout-timer').innerText = `${h}:${m}:${s}`;
+        }
+
+        async function saveCurrentWorkout() {
+            const duration = document.getElementById('workout-timer').innerText;
+            const reps = parseInt(document.getElementById('rep-count').innerText) || 0;
+            
+            if (reps === 0) {
+                alert("Complete at least 1 rep before saving your workout!");
+                return;
+            }
+
+            try {
+                let response = await fetch('/api/save_workout', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        duration: duration,
+                        reps: reps,
+                        form_rating: "Good Form"
+                    })
+                });
+                let result = await response.json();
+                if (result.status === "success") {
+                    alert("🎉 Workout saved successfully!");
+                    window.location.href = "/history";
+                }
+            } catch (err) {
+                console.error("Error saving workout:", err);
+            }
+        }
+
+        // Chart.js Configuration
+        const ctx = document.getElementById('accelChart').getContext('2d');
+        const accelChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Motion Intensity',
+                    data: [],
+                    borderColor: '#4da6ff',
+                    backgroundColor: 'rgba(77, 166, 255, 0.1)',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.3
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: { display: false, grid: { color: '#333' } },
+                    y: { 
+                        beginAtZero: true, 
+                        suggestedMax: 25,
+                        grid: { color: '#333' },
+                        ticks: { color: '#aaa' }
+                    }
+                },
+                plugins: { legend: { display: false } },
+                animation: false
+            }
+        });
+
+        async function fetchTelemetry() {
+            try {
+                let response = await fetch('/api/live_stream');
+                let data = await response.json();
+                
+                // Update Reps
+                document.getElementById('rep-count').innerText = data.rep_count;
+                
+                // Update Coaching Banner based on precise Form/Motion Status
+                const coachingBox = document.getElementById('coaching-message');
+                if (data.form_status === "Too Jerky!") {
+                    coachingBox.style.borderColor = "#da3633";
+                    coachingBox.style.color = "#ff6b6b";
+                    coachingBox.style.background = "#361d1f";
+                    coachingBox.innerHTML = "⚠️ Motion too fast or jerky! Take a short rest and slow down your reps.";
+                } else if (data.form_status === "Lifting") {
+                    coachingBox.style.borderColor = "#007bff";
+                    coachingBox.style.color = "#4da6ff";
+                    coachingBox.style.background = "#252526";
+                    coachingBox.innerHTML = "💪 Keep pushing! Controlled and steady lift.";
+                } else if (data.form_status === "Stationary - Not Started") {
+                    coachingBox.style.borderColor = "#6c757d";
+                    coachingBox.style.color = "#adb5bd";
+                    coachingBox.style.background = "#252526";
+                    coachingBox.innerHTML = "⏸️ Stationary - Not started yet. Pick up your dumbbell and begin!";
+                } else if (data.form_status === "Resting") {
+                    coachingBox.style.borderColor = "#ffaa00";
+                    coachingBox.style.color = "#ffaa00";
+                    coachingBox.style.background = "#252526";
+                    coachingBox.innerHTML = "🟢 Resting between sets. Catch your breath!";
+                } else {
+                    coachingBox.style.borderColor = "#2ea043";
+                    coachingBox.style.color = "#5cdb5c";
+                    coachingBox.style.background = "#252526";
+                    coachingBox.innerHTML = "✨ Form looks wonderful! Keep going, you're doing great!";
+                }
+
+                // Update live chart
+                const now = new Date().toLocaleTimeString();
+                if (accelChart.data.labels.length > 40) {
+                    accelChart.data.labels.shift();
+                    accelChart.data.datasets[0].data.shift();
+                }
+                accelChart.data.labels.push(now);
+                accelChart.data.datasets[0].data.push(data.filtered_accel);
+                accelChart.update();
+            } catch (err) {
+                console.error("Dashboard fetch error:", err);
+            }
+        }
+
+        // Poll every 100ms
+        setInterval(fetchTelemetry, 100);
+    </script>
+</body>
+</html>

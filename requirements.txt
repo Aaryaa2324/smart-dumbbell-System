@@ -1,0 +1,7 @@
+Flask
+numpy
+scipy
+scikit-learn
+requests
+pyserial
+gunicorn
