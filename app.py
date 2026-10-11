@@ -12,8 +12,26 @@ logging.basicConfig(level=logging.INFO)
 
 @app.route('/api/telemetry', methods=['POST'])
 def receive_telemetry():
-    app.logger.info("Telemetry received: %s", request.get_json())
-    ...
+    data = request.get_json()
+    if data:
+        raw = data.get('raw_accel', data.get('accel', 0.0))
+        filtered = data.get('filtered_accel', data.get('accel', 0.0))
+        status = data.get('form_status', data.get('form_rating', 'Stationary - Not Started'))
+        reps = data.get('rep_count', data.get('reps', 0))
+
+        app.logger.info("Telemetry received: %s", data)   # the one new line
+
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE live_telemetry 
+            SET raw_accel = ?, filtered_accel = ?, form_status = ?, rep_count = ?
+            WHERE id = 1
+        """, (raw, filtered, status, reps))
+        conn.commit()
+        conn.close()
+        return jsonify({'status': 'success'}), 200
+    return jsonify({'status': 'error', 'message': 'No data received'}), 400
 
 def init_db():
     conn = sqlite3.connect(DB_FILE)
