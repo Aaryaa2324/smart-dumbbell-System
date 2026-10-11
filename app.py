@@ -3,15 +3,21 @@ import sqlite3
 from flask import Flask, jsonify, redirect, render_template, request, session, url_for
 
 app = Flask(__name__)
-app.secret_key = 'smart_dumbbell_secure_key'  # Needed for session management
+app.secret_key = 'smart_dumbbell_secure_key'
 
 DB_FILE = 'dumbbell.db'
 
+import logging
+logging.basicConfig(level=logging.INFO)
+
+@app.route('/api/telemetry', methods=['POST'])
+def receive_telemetry():
+    app.logger.info("Telemetry received: %s", request.get_json())
+    ...
 
 def init_db():
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
-    # Workouts table
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS workouts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -21,7 +27,6 @@ def init_db():
             form_rating TEXT
         )
     """)
-    # Users table for secure SHA-256 login
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -29,7 +34,6 @@ def init_db():
             password_hash TEXT
         )
     """)
-    # Persistent telemetry table for cloud synchronization across workers
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS live_telemetry (
             id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -45,7 +49,6 @@ def init_db():
     """)
     conn.commit()
 
-    # Create a default test user if none exists (Password: "workout123")
     cursor.execute('SELECT COUNT(*) FROM users')
     if cursor.fetchone()[0] == 0:
         default_user_hash = hashlib.sha256('athlete'.encode()).hexdigest()
@@ -57,58 +60,37 @@ def init_db():
         conn.commit()
     conn.close()
 
-
 init_db()
 
-
-# Routes
 @app.route('/')
 def home():
     return render_template('home.html')
-
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
         data = request.get_json()
         password = data.get('password', '')
-
-        # Hash the entered password using SHA-256
         pass_hash = hashlib.sha256(password.encode()).hexdigest()
 
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
-        # Verify against stored password hash
-        cursor.execute(
-            'SELECT * FROM users WHERE password_hash = ?', (pass_hash,)
-        )
+        cursor.execute('SELECT * FROM users WHERE password_hash = ?', (pass_hash,))
         user = cursor.fetchone()
         conn.close()
 
         if user:
             session['logged_in'] = True
-            return (
-                jsonify({
-                    'status': 'success',
-                    'message': 'Login successful!',
-                    'redirect': '/dashboard',
-                }),
-                200,
-            )
+            return jsonify({'status': 'success', 'message': 'Login successful!', 'redirect': '/dashboard'}), 200
         else:
-            return (
-                jsonify({'status': 'error', 'message': 'Invalid password!'}),
-                401,
-            )
+            return jsonify({'status': 'error', 'message': 'Invalid password!'}), 401
 
     return render_template('login.html')
-
 
 @app.route('/logout')
 def logout():
     session.pop('logged_in', None)
     return redirect(url_for('home'))
-
 
 @app.route('/dashboard')
 def dashboard():
@@ -116,36 +98,33 @@ def dashboard():
         return redirect(url_for('login'))
     return render_template('index.html')
 
-
 @app.route('/history')
 def history():
     if not session.get('logged_in'):
         return redirect(url_for('login'))
     return render_template('history.html')
 
-
-# Telemetry APIs using SQLite persistence
 @app.route('/api/telemetry', methods=['POST'])
 def receive_telemetry():
     data = request.get_json()
     if data:
+        # Flexible key extraction
+        raw = data.get('raw_accel', data.get('accel', 0.0))
+        filtered = data.get('filtered_accel', data.get('accel', 0.0))
+        status = data.get('form_status', data.get('form_rating', 'Stationary - Not Started'))
+        reps = data.get('rep_count', data.get('reps', 0))
+
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
         cursor.execute("""
             UPDATE live_telemetry 
             SET raw_accel = ?, filtered_accel = ?, form_status = ?, rep_count = ?
             WHERE id = 1
-        """, (
-            data.get('raw_accel', 0.0),
-            data.get('filtered_accel', 0.0),
-            data.get('form_status', 'Stationary - Not Started'),
-            data.get('rep_count', 0)
-        ))
+        """, (raw, filtered, status, reps))
         conn.commit()
         conn.close()
         return jsonify({'status': 'success'}), 200
     return jsonify({'status': 'error', 'message': 'No data received'}), 400
-
 
 @app.route('/api/live_stream', methods=['GET'])
 def send_live_stream():
@@ -156,49 +135,50 @@ def send_live_stream():
     conn.close()
     
     if row:
+        # Provide both naming conventions so frontend JS never fails
         telemetry_data = {
-            'raw_accel': row[0],
+            'accel': row[1],
             'filtered_accel': row[1],
+            'raw_accel': row[0],
+            'rep_count': row[3],
+            'reps': row[3],
             'form_status': row[2],
-            'rep_count': row[3]
+            'form_rating': row[2]
         }
         return jsonify(telemetry_data)
+    
     return jsonify({
-        'raw_accel': 0.0,
+        'accel': 0.0,
         'filtered_accel': 0.0,
+        'raw_accel': 0.0,
+        'rep_count': 0,
+        'reps': 0,
         'form_status': 'Stationary - Not Started',
-        'rep_count': 0
+        'form_rating': 'Stationary - Not Started'
     })
-
 
 @app.route('/api/save_workout', methods=['POST'])
 def save_workout():
     data = request.get_json()
     duration = data.get('duration', '00:00:00')
-    reps = data.get('reps', 0)
+    reps = data.get('reps', data.get('rep_count', 0))
     form_rating = data.get('form_rating', 'Good Form')
 
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     cursor.execute(
-        '''
-            INSERT INTO workouts (duration, reps, form_rating) 
-            VALUES (?, ?, ?)
-        ''',
+        'INSERT INTO workouts (duration, reps, form_rating) VALUES (?, ?, ?)',
         (duration, reps, form_rating),
     )
     conn.commit()
     conn.close()
     return jsonify({'status': 'success', 'message': 'Workout saved!'}), 200
 
-
 @app.route('/api/get_history', methods=['GET'])
 def get_history():
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
-    cursor.execute(
-        'SELECT id, timestamp, duration, reps, form_rating FROM workouts ORDER BY id DESC'
-    )
+    cursor.execute('SELECT id, timestamp, duration, reps, form_rating FROM workouts ORDER BY id DESC')
     rows = cursor.fetchall()
     conn.close()
 
@@ -213,7 +193,6 @@ def get_history():
         for r in rows
     ]
     return jsonify(history_data)
-
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
