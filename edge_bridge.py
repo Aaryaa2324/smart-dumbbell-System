@@ -9,10 +9,10 @@ BAUD_RATE = 115200
 FLASK_URL = 'https://smart-dumbbell-system.onrender.com/api/telemetry'
 
 def process_and_send():
-    # Fine-tuned thresholds and precision control
-    REP_THRESHOLD_HIGH = 3.0   # Trigger when movement force exceeds 3.0
-    REP_THRESHOLD_LOW = 1.0    # Reset when motion drops below 1.0
-    DEBOUNCE_DELAY = 0.25      # Minimum seconds required between valid reps
+    # Sensitive thresholds for reliable rep detection
+    REP_THRESHOLD_HIGH = 0.5   # Lowered from 1.0 to catch even lighter lifts
+    REP_THRESHOLD_LOW = 0.15   # Lowered from 0.3 to close reps earlier
+    DEBOUNCE_DELAY = 0.2       # Shortened cooldown so rapid reps register      # Minimum seconds between valid reps
     last_rep_time = 0
     alpha = 0.4                # Low-pass filter smoothing coefficient
 
@@ -35,25 +35,36 @@ def process_and_send():
         try:
             if ser.in_waiting > 0:
                 line = ser.readline().decode('utf-8', errors='ignore').strip()
-                print(f"RAW FROM ARDUINO: '{line}'")
                 if not line:
                     continue
 
-                # Expecting JSON with ax, ay, az from Arduino
+                raw_accel = 0.0
                 try:
+                    # Try parsing as JSON first
                     data = json.loads(line)
-                    ay = float(data.get("ay", 10.0))
-                    # Calculate net motion change by removing gravity baseline
-                    raw_accel = abs(ay - 9.81)
+                    ax = float(data.get("ax", 0.0))
+                    ay = float(data.get("ay", 0.0))
+                    az = float(data.get("az", 9.81))
+                    total_accel = math.sqrt(ax**2 + ay**2 + az**2)
+                    raw_accel = abs(total_accel - 9.81)
                 except json.JSONDecodeError:
-                    # Fallback if Arduino sends plain float/string numbers instead of JSON
+                    # Fallback: handle plain strings or comma-separated values
                     try:
-                        raw_accel = float(line)
-                    except ValueError:
+                        parts = [float(p.strip()) for p in line.replace('{','').replace('}','').replace('"','').split(',')]
+                        if len(parts) >= 3:
+                            total_accel = math.sqrt(parts[0]**2 + parts[1]**2 + parts[2]**2)
+                            raw_accel = abs(total_accel - 9.81)
+                        elif len(parts) == 1:
+                            raw_accel = abs(parts[0] - 9.81)
+                        else:
+                            clean_line = ''.join(c for c in line if c.isdigit() or c in '.-')
+                            raw_accel = abs(float(clean_line) - 9.81)
+                    except Exception:
                         continue
 
                 # Apply low-pass filter
                 filtered_accel = (alpha * raw_accel) + ((1 - alpha) * filtered_accel)
+                print(f"DEBUG Magnitude: {filtered_accel:.2f}") # Add this line
 
                 # Responsive rep counting state machine
                 current_time = time.time()
@@ -66,16 +77,14 @@ def process_and_send():
                     in_rep = False
 
                 # Form status evaluation
-                if filtered_accel < 0.8:
+                if filtered_accel < 0.2:
                     form_status = "Stationary - Not Started"
-                elif filtered_accel < 2.0:
+                elif filtered_accel < 0.8:
                     form_status = "Resting"
                 else:
                     form_status = "Good Form"
 
-                # Construct payload
-                # Construct payload with dual-compatibility keys for Flask app.py
-                # Construct comprehensive payload ensuring full frontend compatibility
+                # Construct comprehensive payload
                 payload = {
                     "accel": round(filtered_accel, 2),
                     "filtered_accel": round(filtered_accel, 2),
@@ -88,7 +97,7 @@ def process_and_send():
 
                 # POST to Render cloud endpoint
                 response = requests.post(FLASK_URL, json=payload, timeout=3.0)
-                print(f"Pushed: Reps={rep_count} | Form={form_status} | Status={response.status_code}")
+                print(f"Pushed: Reps={rep_count} | Mag={round(filtered_accel, 2)} | Status={response.status_code}")
 
         except requests.exceptions.RequestException as e:
             print(f"Network error pushing telemetry: {e}")
