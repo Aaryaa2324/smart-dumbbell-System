@@ -28,8 +28,9 @@ class DumbbellSession(db.Model):
 with app.app_context():
     try:
         db.create_all()
+        print("Database tables verified/created successfully.")
     except Exception as e:
-        print(f"Database initialization note: {e}")
+        print(f"Database setup error: {e}")
 
 # --- HTML TEMPLATES ---
 BASE_LAYOUT = '''
@@ -181,31 +182,38 @@ def dashboard():
 
 @app.route('/api/live-data')
 def live_data():
-    latest = DumbbellSession.query.order_by(DumbbellSession.id.desc()).first()
-    if not latest:
-        return jsonify({"rep_count": 0, "ax": 0, "ay": 0, "az": 0})
-    return jsonify({
-        "rep_count": latest.rep_count,
-        "ax": latest.ax,
-        "ay": latest.ay,
-        "az": latest.az
-    })
+    try:
+        latest = DumbbellSession.query.order_by(DumbbellSession.id.desc()).first()
+        if not latest:
+            return jsonify({"rep_count": 0, "ax": 0, "ay": 0, "az": 0})
+        return jsonify({
+            "rep_count": latest.rep_count,
+            "ax": latest.ax,
+            "ay": latest.ay,
+            "az": latest.az
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/api/telemetry', methods=['POST'])
 def receive_telemetry():
-    content = request.json
-    if not content:
-        return jsonify({"error": "No payload"}), 400
-    
-    new_entry = DumbbellSession(
-        rep_count=content.get('rep_count', 0),
-        ax=content.get('ax'),
-        ay=content.get('ay'),
-        az=content.get('az')
-    )
-    db.session.add(new_entry)
-    db.session.commit()
-    return jsonify({"status": "success"}), 201
+    try:
+        content = request.json
+        if not content:
+            return jsonify({"error": "No payload"}), 400
+        
+        new_entry = DumbbellSession(
+            rep_count=content.get('rep_count', 0),
+            ax=content.get('ax'),
+            ay=content.get('ay'),
+            az=content.get('az')
+        )
+        db.session.add(new_entry)
+        db.session.commit()
+        return jsonify({"status": "success"}), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
