@@ -5,10 +5,10 @@ import time
 
 # Update with your Arduino serial port (e.g., 'COM3' on Windows or '/dev/ttyUSB0' on Linux/Mac)
 SERIAL_PORT = 'COM3'
-BAUD_RATE = 9600
+BAUD_RATE = 115200
 
 # Replace this with your NEW Render Web Service URL once deployed
-CLOUD_URL = 'https://your-new-render-app-name.onrender.com/api/telemetry'
+CLOUD_URL = 'https://smart-dumbbell-setup.onrender.com/api/telemetry'
 
 def start_bridge():
     print(f"Connecting to Arduino on {SERIAL_PORT}...")
