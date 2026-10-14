@@ -5,7 +5,8 @@ import time
 
 SERIAL_PORT = 'COM3'
 BAUD_RATE = 115200
-CLOUD_URL = 'https://smart-dumbbell-service.onrender.com/api/telemetry'
+# Make sure this matches your exact Render live URL ending in /api/telemetry
+CLOUD_URL = 'https://smart-dumbbell-setup.onrender.com/api/telemetry'
 
 def start_bridge():
     print(f"Connecting to Arduino on {SERIAL_PORT} at {BAUD_RATE} baud...")
@@ -16,27 +17,26 @@ def start_bridge():
         print(f"Failed to connect to serial port: {e}")
         return
 
-    print("Edge bridge active and listening for telemetry...")
+    print("Edge bridge active and filtering valid JSON telemetry...")
     
     while True:
         try:
             if ser.in_waiting > 0:
                 line = ser.readline().decode('utf-8', errors='ignore').strip()
-                if line:
-                    print(f"RAW FROM ARDUINO: {line}")
-                    if line.startswith("{"):
-                        data = json.loads(line)
-                        response = requests.post(CLOUD_URL, json=data, timeout=5)
-                        if response.status_code == 201:
-                            print(f"-> Synced to Render! Reps: {data.get('rep_count')} | Accel X: {data.get('ax')}")
-                        else:
-                            print(f"-> Server responded with status: {response.status_code}")
+                # Ensure we only process complete JSON payloads starting with { and ending with }
+                if line.startswith("{") and line.endswith("}"):
+                    data = json.loads(line)
+                    response = requests.post(CLOUD_URL, json=data, timeout=5)
+                    if response.status_code == 201:
+                        print(f"-> Synced! Reps: {data.get('rep_count')} | Accel X: {data.get('ax')}")
+                    else:
+                        print(f"-> Server responded with status: {response.status_code}")
         except json.JSONDecodeError:
-            print(f"-> Skipped non-JSON line")
+            pass
         except requests.exceptions.RequestException as re:
             print(f"-> Network error posting to Render: {re}")
-        except Exception as ex:
-            print(f"-> Unexpected error: {ex}")
+        except Exception:
+            pass
         
         time.sleep(0.05)
 

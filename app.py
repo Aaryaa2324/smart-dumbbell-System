@@ -26,7 +26,10 @@ class DumbbellSession(db.Model):
     timestamp = db.Column(db.DateTime, server_default=db.func.now())
 
 with app.app_context():
-    db.create_all()
+    try:
+        db.create_all()
+    except Exception as e:
+        print(f"Database initialization note: {e}")
 
 # --- HTML TEMPLATES ---
 BASE_LAYOUT = '''
@@ -171,7 +174,7 @@ def dashboard():
             } catch(e) { console.error(e); }
         }
 
-        setInterval(fetchData, 1000); // Polling every 1 second for real-time feel
+        setInterval(fetchData, 1000);
     </script>
     {% endblock %}
     ''')
