@@ -5,7 +5,6 @@ from flask_sqlalchemy import SQLAlchemy
 app = Flask(__name__)
 app.secret_key = 'smart_dumbbell_secure_secret_key'
 
-# Configure Database: Render PostgreSQL or local fallback
 db_url = os.environ.get('DATABASE_URL')
 if db_url and db_url.startswith("postgres://"):
     db_url = db_url.replace("postgres://", "postgresql://", 1)
@@ -28,11 +27,9 @@ class DumbbellSession(db.Model):
 with app.app_context():
     try:
         db.create_all()
-        print("Database tables verified/created successfully.")
     except Exception as e:
-        print(f"Database setup error: {e}")
+        print(f"DB Init Note: {e}")
 
-# --- HTML TEMPLATES ---
 BASE_LAYOUT = '''
 <!DOCTYPE html>
 <html>
@@ -177,7 +174,7 @@ def dashboard():
 
         setInterval(fetchData, 1000);
     </script>
-    {% endblock %}
+    {% endblock %}:
     ''')
 
 @app.route('/api/live-data')
@@ -192,8 +189,8 @@ def live_data():
             "ay": latest.ay,
             "az": latest.az
         })
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    except Exception:
+        return jsonify({"rep_count": 0, "ax": 0, "ay": 0, "az": 0})
 
 @app.route('/api/telemetry', methods=['POST'])
 def receive_telemetry():

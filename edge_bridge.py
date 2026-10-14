@@ -5,7 +5,6 @@ import time
 
 SERIAL_PORT = 'COM3'
 BAUD_RATE = 115200
-# Make sure this matches your exact Render live URL ending in /api/telemetry
 CLOUD_URL = 'https://smart-dumbbell-setup.onrender.com/api/telemetry'
 
 def start_bridge():
@@ -17,24 +16,27 @@ def start_bridge():
         print(f"Failed to connect to serial port: {e}")
         return
 
-    print("Edge bridge active and filtering valid JSON telemetry...")
+    print("Edge bridge active. Streaming telemetry to Render...")
     
     while True:
         try:
             if ser.in_waiting > 0:
                 line = ser.readline().decode('utf-8', errors='ignore').strip()
-                # Ensure we only process complete JSON payloads starting with { and ending with }
                 if line.startswith("{") and line.endswith("}"):
                     data = json.loads(line)
-                    response = requests.post(CLOUD_URL, json=data, timeout=5)
-                    if response.status_code == 201:
-                        print(f"-> Synced! Reps: {data.get('rep_count')} | Accel X: {data.get('ax')}")
-                    else:
-                        print(f"-> Server responded with status: {response.status_code}")
+                    try:
+                        response = requests.post(CLOUD_URL, json=data, timeout=5)
+                        if response.status_code == 201:
+                            print(f"-> Synced! Reps: {data.get('rep_count')} | Accel X: {data.get('ax')}")
+                        else:
+                            print(f"-> Server responded with status: {response.status_code}")
+                    except requests.exceptions.RequestException:
+                        print("-> Network blip (Render server spinning up or reconnecting)...")
         except json.JSONDecodeError:
             pass
-        except requests.exceptions.RequestException as re:
-            print(f"-> Network error posting to Render: {re}")
+        except KeyboardInterrupt:
+            print("\nBridge stopped by user.")
+            break
         except Exception:
             pass
         
